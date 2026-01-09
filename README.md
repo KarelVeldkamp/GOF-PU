@@ -2,9 +2,9 @@
 
 This repository contains code for estimating multidimensional Item Response Theory (IRT) models using **amortized variational inference (AVI)**, as well as likelihood-based **Fisher scoring**.
 
-The code is used to demonstrate that performing a **single step of Fisher scoring** is sufficient to compute:
-- goodness-of-fit statistics, and  
-- parameter standard errors.
+The code is used to demonstrate that after using AVI to estimate MIRt paramters, performing a **single step of Fisher scoring** is sufficient to compute:
+- goodness-of-fit statistics 
+- parameter standard errors
 
 ---
 
