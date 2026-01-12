@@ -61,7 +61,7 @@ def mlll(params, cnodes, cweights, Q, data):
     # 5. Marginalize over quadrature points
     return torch.logsumexp(weighted_ll, dim=0)  # sum over people
 
-def onestep(vae, data, nquad, batch_size=None):
+def onestep(vae, data, nquad, se_type='fisher', batch_size=None):
     """
     function used to perform one step of fisher scoring
     :param vae: pytorch module containing model estimated using AVI
@@ -126,20 +126,25 @@ def onestep(vae, data, nquad, batch_size=None):
     I_FI = torch.eye(FI.shape[0], device=FI.device, dtype=FI.dtype)
     FI_inv = torch.linalg.inv(FI + I_FI * 1e-6)
 
-    H = torch.autograd.functional.hessian(
-        lambda p: mlll(p, cnodes, cweights, Q, data).sum(),
-        est_params
-    )
-    # Conventionally, use -H if mlll is a log-likelihood (since H is negative definite at the max).
-    H = -H
-    I_H = torch.eye(H.shape[0], device=H.device, dtype=H.dtype)
-    H_inv = torch.linalg.inv(H + I_H * 1e-6)
-    V_robust = H_inv @ FI @ H_inv  # FI is your B
-    se_robust = torch.sqrt(torch.diag(V_robust))
+    if se_type == 'sandwich':
+        H = torch.autograd.functional.hessian(
+            lambda p: mlll(p, cnodes, cweights, Q, data).sum(),
+            est_params
+        )
+        # Conventionally, use -H if mlll is a log-likelihood (since H is negative definite at the max).
+        H = -H
+        I_H = torch.eye(H.shape[0], device=H.device, dtype=H.dtype)
+        H_inv = torch.linalg.inv(H + I_H * 1e-6)
+        V_robust = H_inv @ FI @ H_inv  # FI is your B
+        se = torch.sqrt(torch.diag(V_robust))
+    elif se_type == 'fisher':
+        se = torch.sqrt(torch.diag(FI_inv))
+    else:
+        raise ValueError('se_type must be either "sandwich" or "fisher"')
     # update parameters
     newpars = est_params.clone() + FI_inv @ grad
     # compute standard errors
-    se = torch.sqrt(torch.diag(FI_inv))
+
 
     new_a = torch.zeros_like(W.T)
     se_a = torch.zeros_like(W.T)
@@ -147,9 +152,8 @@ def onestep(vae, data, nquad, batch_size=None):
 
     new_a[Q.T == 1] = newpars[:Q.int().sum()]
     se_a[Q.T == 1] = se[:Q.int().sum()]
-    se_robust_a[Q.T == 1] = se_robust[:Q.int().sum()]
     new_b = newpars[Q.int().sum():]
     se_b = se[Q.int().sum():]
-    se_robust_b = se_robust[Q.int().sum():]
 
-    return new_a.cpu().detach(), new_b.cpu().detach(), se_a.cpu().detach(), se_b.cpu().detach(), se_robust_a.cpu().detach(), se_robust_b.cpu().detach()
+
+    return new_a.cpu().detach(), new_b.cpu().detach(), se_a.cpu().detach(), se_b.cpu().detach()

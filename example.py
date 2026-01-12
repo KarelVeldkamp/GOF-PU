@@ -35,7 +35,7 @@ trainer = Trainer(max_epochs=4000,
 
 # create dataset and data loader objects
 dataset = SimDataset(data)
-train_loader = DataLoader(dataset, batch_size=1000, shuffle=False)
+train_loader = DataLoader(dataset, batch_size=32, shuffle=False)
 
 # initialize model
 vae = VAE(nitems=data.shape[1],
@@ -57,19 +57,17 @@ b_est = vae.decoder.bias.t().detach().numpy()
 
 # compute information matrix and perform one step
 start = time.time()
-onestep_a, onestep_b, avi_se_a, avi_se_b, avi_se_sandwich_a, avi_se_sw_b = onestep(vae, data, 15, 1)
+onestep_a, onestep_b, avi_se_a, avi_se_b = onestep(vae, data, nquad=15, se_type='fisher', batch_size=1)
 runtime_onestep = time.time() - start
 print(f'one-step time: {runtime_onestep}')
-print(f'Note: time can be much faster without computing the sandwich estimator')
 
 # compute information again at new estimates (in order to get standard errors)
 vae.decoder.weights = nn.Parameter(onestep_a.T)
 vae.decoder.bias = nn.Parameter(onestep_b)
 start = time.time()
-_, _, onestep_se_a, onestep_se_b, onestep_se_swh_a, onestep_se_sw_b = onestep(vae, data, 15, 1)
+_, _, onestep_se_a, onestep_se_b = onestep(vae, data, nquad=15, se_type='fisher', batch_size=1)
 runtime_standard_errors = time.time() - start
 print(f'Time computing standard errorr (FIM + sandwich estimator): {runtime_standard_errors}')
-print(f'Note: time can be much faster without computing the sandwich estimator')
 
 # invert slopes if necessary
 for dim in range(a_est.shape[1]):
